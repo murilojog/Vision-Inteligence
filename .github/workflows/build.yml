@@ -1,0 +1,70 @@
+name: Build and Test and Release
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      - name: Run unit tests
+        run: |
+          python -m unittest discover -v tests
+
+  build:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Build executable
+        run: pyinstaller --onefile --windowed --name "Vision Intelligence - Murilo" main.py
+      - name: Copy Tesseract bundle
+        run: xcopy /e /i tesseract dist\Vision Intelligence - Murilo\tesseract
+      - name: Sign executable
+        if: env.CERT_PFX != ''
+        run: signtool sign /f ${{ env.CERT_PFX }} /p ${{ env.CERT_PASSWORD }} /tr http://timestamp.digicert.com /td sha256 /fd sha256 dist\"Vision Intelligence - Murilo.exe"
+      - name: Setup Inno
+        uses: ilammy/nsis-action@v1.0.3
+      - name: Build installer
+        run: ISCC installer_script.iss
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Vision Intelligence Murilo v1.0.${{ github.run_number }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Release Asset
+        uses: softprops/action-upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dist/Vision_Intelligence_Murilo_Setup.exe
+          asset_name: Vision_Intelligence_Murilo_Setup.exe
+          asset_content_type: application/octet-stream
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Docker image
+        run: docker build -t vision-intelligence:latest .
+      - name: Push Docker image
+        run: echo "Docker image built, ready to push to registry"

@@ -1,0 +1,7 @@
+pytesseract
+Pillow
+pyinstaller
+openai
+python-telegram-bot
+pyupdater
+matplotlib
